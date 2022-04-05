@@ -12,6 +12,7 @@
         "laravel/sanctum": "^2.14.1",
         "laravel/tinker": "^2.7",
         "maatwebsite/excel": "^3.1",
+        "php-open-source-saver/jwt-auth": "^1.4",
         "phpoffice/phpword": "^0.18.3",
         "santigarcor/laratrust": "^7.1",
         "yajra/laravel-datatables-oracle": "~9.0"
