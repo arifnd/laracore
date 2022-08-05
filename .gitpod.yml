@@ -19,4 +19,5 @@ tasks:
       npm i &&
       php artisan key:generate
     command: >
-      php -S 0.0.0.0:8000 -t public
+      php artisan migrate --seed &&
+      php artisan serve --host=0.0.0.0
