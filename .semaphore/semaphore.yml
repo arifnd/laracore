@@ -87,6 +87,7 @@ blocks:
           - cache restore
           - composer install
           # - npm install
+          - cp .env.example .env
           # We need to generate an application key for Laravel to work.
           - php artisan key:generate
           # Run the unit tests from the phpunit binary in vendor folder
