@@ -1,0 +1,122 @@
+# Use the latest stable version of Semaphore 2.0 YML syntax:
+version: v1.0
+
+# Name your pipeline. In case you connect multiple pipelines with promotions,
+# the name will help you differentiate between, for example, a CI build phase
+# and delivery phases.
+name: Semaphore Laravel Pipeline
+
+# An agent defines the environment in which your code runs.
+# It is a combination of one of available machine types and operating
+# system images.
+# See https://docs.semaphoreci.com/article/20-machine-types
+# and https://docs.semaphoreci.com/article/32-ubuntu-1804-image
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2004
+
+global_job_config:
+  prologue:
+    commands:
+      - sem-version php 8.0
+# Blocks are the heart of a pipeline and are executed sequentially.
+# Each block has a task that defines one or more jobs. Jobs define the
+# commands to execute.
+# See https://docs.semaphoreci.com/article/62-concepts
+blocks:
+  - name: "Install Dependencies"
+    task:
+      env_vars:
+        - name: APP_ENV
+          value: prod
+      jobs:
+        - name: composer
+          commands:
+            # Checkout code from Git repository. This step is mandatory if the
+            # job is to work with your code.
+            # Optionally you may use --use-cache flag to avoid roundtrip to
+            # remote repository.
+            # See https://docs.semaphoreci.com/article/54-toolbox-reference#libcheckout
+            - checkout
+            # Try and find a cached version of our /vendor dependencies folder.
+            # Semaphore tries to find a partial match.
+            # Read about caching: https://docs.semaphoreci.com/article/54-toolbox-reference#cache
+            - cache restore
+            # Install our project composer
+            - composer install
+            # Install node dependencies
+            # - npm install
+            # Store the /vendor and node_modules folders into cache for later use.
+            - cache store
+            # We are setting up the .env file from our example file which contains Semaphore DB data and proper app URL
+            - cp .env.example .env
+            # We need to generate an application key for Laravel to work.
+            - php artisan key:generate
+
+  - name: "Run Code Analysis"
+    task:
+      prologue:
+        commands:
+          - checkout
+          - cache restore
+          - composer install
+          # - npm install
+      jobs:
+        - name: phpmd
+          commands:
+            # Run the PHP Mess Detector from our project dependency binary
+            - php vendor/bin/phpmd app/ text phpmd_ruleset.xml
+        - name: phpcs
+          commands:
+            # Run the PHP Code Sniffer from our project dependency binary
+            - php vendor/bin/phpcs app --report-full --standard=PSR2
+        - name: phpcpd
+          commands:
+            # Run the PHP Copy Paste Detector from online repository.
+            - curl -L https://phar.phpunit.de/phpcpd.phar -o phpcpd.phar
+            - php phpcpd.phar app/ --min-lines=50
+
+  - name: "Run Unit tests"
+    task:
+      jobs:
+      - name: phpunit
+        commands:
+          - checkout
+          - cache restore
+          - composer install
+          # - npm install
+          # Run the unit tests from the phpunit binary in vendor folder
+          - ./vendor/bin/phpunit
+
+  # - name: "Run Browser tests"
+  #   task:
+  #     jobs:
+  #       - name: laravel dusk
+  #         commands:
+  #           - checkout
+  #           - cp .env.example .env
+  #           # Create an empty .sqlite DB
+  #           - touch database/database.sqlite
+  #           - cache restore
+  #           - composer install
+  #           - npm install
+  #           # Create an application key again.
+  #           - php artisan key:generate
+  #           - php artisan dusk:update --detect
+  #           # Start Laravel's built-in web server so the web driver used by Dusk can connect.
+  #           # We start the server using the .env.dusk.local environment file that uses SQLITE.
+  #           - php artisan serve --env=dusk.local --port=8010 &
+  #           # Run the tests
+  #           - php artisan dusk
+
+  - name: "Run Security Tests"
+    task:
+      jobs:
+        - name: security-checker
+          commands:
+            - checkout
+            # We pull latest symfony cli docker image
+            - docker pull symfonycorp/cli:latest
+            # And finally, run the check
+            - docker run --rm -v $(pwd):$(pwd) -w $(pwd) symfonycorp/cli check:security
